@@ -1,0 +1,101 @@
+---
+title: "Next_Word_Data_Analysis"
+author: "Moamen Ihab"
+date: "2/17/2020"
+output: html_document
+---
+# Loading necessary libraries an setting seed
+```{r, message=FALSE}
+library(stringi)
+library(tm)
+library(SnowballC)
+library(RWeka)
+library(ggplot2)
+library(wordcloud)
+set.seed(2727)
+```
+
+# Loading data to R
+
+```{r}
+ftwitter <- "~/WorkSpace/final/en_US/en_US.twitter.txt"
+fblog <- "~/WorkSpace/final/en_US/en_US.blogs.txt"
+fnews <- "~/WorkSpace/final/en_US/en_US.news.txt"
+ftwitter <- readLines(ftwitter, skipNul = TRUE, encoding = "UTF-8")
+fblog <- readLines(fblog, skipNul = TRUE, encoding = "UTF-8")
+fnews <-readLines(fnews, skipNul = TRUE, encoding = "UTF-8")
+```
+## Simple look at the data
+
+```{r}
+head(ftwitter, 2)
+head(fblog, 2)
+head(fnews, 2)
+```
+## number of lines in each file
+
+```{r}
+length(ftwitter)
+length(fblog)
+length(fnews)
+```
+
+# Sampling the data
+```{r}
+sampleData <- c(sample(ftwitter, 100000), sample(fblog, 100000), sample(fnews, 100000))
+```
+# Data Cleaning
+Now we can use NLP (natural language processing) on data using corpus to get a meaningful results from the data
+```{r}
+corpus <- VCorpus(VectorSource(sampleData))
+
+toSpace <- content_transformer(function(x, pattern) {return (gsub(pattern," ",x))})
+#Cleaning all non ASCII characters
+corpus <- tm_map(corpus,toSpace,"[^[:graph:]]")
+#Transforming all data to lower case
+corpus <- tm_map(corpus,content_transformer(tolower))
+#Deleting all English stopwords and any stray letters left by the non-ASCII removal
+corpus <- tm_map(corpus,removeWords,c(stopwords("english"),letters))
+#Removing Punctuation
+corpus <- tm_map(corpus,removePunctuation)
+#Removing Numbers
+corpus <- tm_map(corpus,removeNumbers)
+#Striping extra whitespace
+corpus <- tm_map(corpus,stripWhitespace)
+```
+# Creating N-Grams
+first is unigrams
+```{r}
+unigramTokenizer <- function(x) {NGramTokenizer(x, Weka_control(min = 1, max = 1))}
+unigrams <- DocumentTermMatrix(corpus, control = list(tokenize = unigramTokenizer))
+freqTerms <- findFreqTerms(unigrams,lowfreq = 1000)
+unigrams_frq <- sort(colSums(as.matrix(unigrams[,freqTerms])),decreasing = TRUE)
+unigrams_freq <- data.frame(word = names(unigrams_frq), frequency = unigrams_frq)
+```
+second is bigrams
+```{r}
+BigramTokenizer <- function(x) {NGramTokenizer(x, Weka_control(min = 2, max = 2))}
+bigrams <- DocumentTermMatrix(corpus, control = list(tokenize = BigramTokenizer))
+freqTerms <- findFreqTerms(bigrams,lowfreq = 100)
+bigrams_frq <- sort(colSums(as.matrix(bigrams[,freqTerms])),decreasing = TRUE)
+bigrams_freq <- data.frame(word = names(bigrams_frq), frequency = bigrams_frq)
+```
+Third is trigrams
+```{r}
+TrigramTokenizer <- function(x) {NGramTokenizer(x, Weka_control(min = 3, max = 3))}
+trigrams <- DocumentTermMatrix(corpus, control = list(tokenize = TrigramTokenizer))
+freqTerms <- findFreqTerms(trigrams,lowfreq = 30)
+trigrams_frq <- sort(colSums(as.matrix(trigrams[,freqTerms])),decreasing = TRUE)
+trigrams_freq <- data.frame(word = names(trigrams_frq), frequency = trigrams_frq)
+```
+
+# Data Visualization
+finally visualizing the data on word clouds
+```{r}
+wordcloud(unigrams_freq$word, unigrams_freq$frequency,scale = c(3,.1),rot.per = 0.30, colors = brewer.pal(5, "Blues"))
+wordcloud(bigrams_freq$word, bigrams_freq$frequency,scale = c(3,.1),rot.per = 0.30, colors = brewer.pal(5, "Blues"))
+wordcloud(trigrams_freq$word, trigrams_freq$frequency,scale = c(3,.1),rot.per = 0.30, colors = brewer.pal(5, "Blues"))
+```
+
+# Next up
+ Next will be the prediction model and deploying on shiny apps
